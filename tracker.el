@@ -18,33 +18,34 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (require 'which-func)
 
+(defcustom tracker-ephemeral-dir "~/.emacs.d" "")
 (defvar *tracker-idle-timeout* 10)
 (defvar *tracker-flush-timeout* 20)
 (defvar *tracker-idle-timer* nil)
 (defvar *tracker-idle-cache-flush-timer* nil)
-(defvar *tracker-log-file* (concat dss-ephemeral-dir "/tracker.log"))
+(defvar *tracker-log-file* (concat tracker-ephemeral-dir "/.tracker.log"))
 (defvar *tracker-cache* nil "The buffer for unflushed tracker events")
 
-(defun tracker/-get-defun-name ()
-  "A cheaper alternative to (which-function) in lisps."
-  (interactive)
-  (save-excursion
-    (dss/out-sexp)
-    (forward-to-word 1)
-    (forward-sexp)
-    (skip-chars-forward " ")
-    (mark-sexp 1)
-    (let ((defun-name (buffer-substring (region-beginning) (region-end))))
-      (if defun-name
-          (set-text-properties 0 (length defun-name) nil defun-name))
-      defun-name)))
+;; (defun tracker/-get-defun-name ()
+;;   "A cheaper alternative to (which-function) in lisps."
+;;   (interactive)
+;;   (save-excursion
+;;     (dss/out-sexp)
+;;     (forward-to-word 1)
+;;     (forward-sexp)
+;;     (skip-chars-forward " ")
+;;     (mark-sexp 1)
+;;     (let ((defun-name (buffer-substring (region-beginning) (region-end))))
+;;       (if defun-name
+;;           (set-text-properties 0 (length defun-name) nil defun-name))
+;;       defun-name)))
 
 (defun tracker/-get-context ()
   (condition-case nil
       (let ((context
              (cond
-              ((member major-mode '(lisp-interaction-mode emacs-lisp-mode))
-               (tracker/-get-defun-name))
+              ;; ((member major-mode '(lisp-interaction-mode emacs-lisp-mode))
+              ;;  (tracker/-get-defun-name))
               (t (which-function)))))
         (if context
             (set-text-properties 0 (length context) nil context))
@@ -133,6 +134,7 @@
   (when *tracker-idle-timer*
     (cancel-timer *tracker-idle-timer*)))
 
+;;;###autoload
 (defun tracker/enable ()
   (interactive)
   (tracker/-cancel-timers)
@@ -143,7 +145,7 @@
   (setq *tracker-idle-timer*
         (run-with-idle-timer *tracker-idle-timeout*
                              t 'tracker/-idle-timer-hook)))
-
+;;;###autoload
 (defun tracker/disable ()
   (interactive)
   (remove-hook 'pre-command-hook 'tracker/-pre-command-hook)
