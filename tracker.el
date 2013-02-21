@@ -18,27 +18,30 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (require 'which-func)
 
-(defcustom tracker-ephemeral-dir "~/.emacs.d" "")
-(defvar *tracker-idle-timeout* 10)
-(defvar *tracker-flush-timeout* 20)
-(defvar *tracker-idle-timer* nil)
-(defvar *tracker-idle-cache-flush-timer* nil)
-(defvar *tracker-log-file* (concat tracker-ephemeral-dir "/.tracker.log"))
-(defvar *tracker-cache* nil "The buffer for unflushed tracker events")
+(defcustom tracker-use-logfile t
+  "If true, will store events on tracker-ephemeral-dir")
 
-;; (defun tracker/-get-defun-name ()
-;;   "A cheaper alternative to (which-function) in lisps."
-;;   (interactive)
-;;   (save-excursion
-;;     (dss/out-sexp)
-;;     (forward-to-word 1)
-;;     (forward-sexp)
-;;     (skip-chars-forward " ")
-;;     (mark-sexp 1)
-;;     (let ((defun-name (buffer-substring (region-beginning) (region-end))))
-;;       (if defun-name
-;;           (set-text-properties 0 (length defun-name) nil defun-name))
-;;       defun-name)))
+(defcustom tracker-ephemeral-dir "~/.emacs.d" "")
+(defcustom tracker-memory-cache-flush-timeout 4 "")
+(defcustom tracker-logfile-flush-timeout 20 "")
+(defcustom tracker-ui-idle-event-timeout 10 "")
+
+(defvar *tracker-memory-cache-flush-timer* nil)
+(defvar *tracker-memory-cache* nil "The buffer for unflushed tracker events")
+(defvar *tracker-memory-cache-flush-hook* '() "")
+
+(defvar *tracker-logfile-flush-timer* nil)
+(defvar *tracker-logfile-path* (concat tracker-ephemeral-dir "/.tracker.log"))
+(defvar *tracker-logfile-cache* nil
+  "A separate cache for log events that are going to be flushed to a log file")
+
+(defvar *tracker-ui-idle-event-timer* nil)
+
+(defvar *tracker-timers* '() "")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Utils
 
 (defun tracker/-get-context ()
   (condition-case nil
@@ -105,60 +108,112 @@
                                   :window-number (tracker/-get-window-number)))
       base-record)))
 
-(defun tracker/-record-event (&optional event)
+(defun tracker/-register-timer (timer)
+  (add-to-list '*tracker-timers* timer))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Memory Cache
+
+(defun tracker/-memory-cache-record-event (&optional event)
   (let ((event-record (tracker/-create-event-record event)))
-    (setq *tracker-cache*
-          (cons event-record *tracker-cache*))))
+    (setq *tracker-memory-cache*
+          (cons event-record *tracker-memory-cache*))))
 
-(defalias 'tracker/-pre-command-hook 'tracker/-record-event)
-(defun tracker/-record-idle-time ()
-  (tracker/-record-event 'idle))
 
-(defun tracker/-serialize-event-list (event-list)
+(defun tracker/-memory-cache-flush-callback ()
+  (run-hook-with-args '*tracker-memory-cache-flush-hook* *tracker-memory-cache*)
+  (setq *tracker-memory-cache* nil))
+
+(defun tracker/-memory-cache-start ()
+  (setq *tracker-memory-cache-flush-timer*
+        (run-with-idle-timer tracker-memory-cache-flush-timeout
+                             t 'tracker/-memory-cache-flush-callback))
+  (tracker/-register-timer *tracker-memory-cache-flush-timer*))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Log File
+
+(defun tracker/-logfile-get-events-from-memory-cache (evs)
+  (setq *tracker-logfile-cache* (append evs *tracker-logfile-cache*)))
+
+(defun tracker/-logfile-serialize-event-list (event-list)
   (mapconcat 'prin1-to-string event-list "\n"))
 
-(defun tracker/-flush-event-cache ()
-  (setq *tracker-cache* (nreverse *tracker-cache*))
-  (let ((output (tracker/-serialize-event-list *tracker-cache*)))
-    (setq *tracker-cache* nil)
-    (append-to-file output nil *tracker-log-file*)
-    (append-to-file "\n" nil *tracker-log-file*)
-                                        ;(message "flush tracker logs")
+(defun tracker/-logfile-flush-events-callback ()
+  (setq *tracker-logfile-cache* (nreverse *tracker-logfile-cache*))
+  (let ((output (tracker/-logfile-serialize-event-list *tracker-logfile-cache*)))
+    (setq *tracker-logfile-cache* nil)
+    (append-to-file output nil *tracker-logfile-path*)
+    (append-to-file "\n" nil *tracker-logfile-path*)
     output))
 
-(defun tracker/-idle-timer-hook ()
-  (tracker/-record-event 'idle))
+(defun tracker/-logfile-start ()
+  (add-hook '*tracker-memory-cache-flush-hook*
+            'tracker/-logfile-get-events-from-memory-cache)
+  (setq *tracker-logfile-flush-timer*
+        (run-with-idle-timer tracker-logfile-flush-timeout
+                             t 'tracker/-logfile-flush-events-callback))
+  (tracker/-register-timer *tracker-logfile-flush-timer*))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Idle Event
+
+(defun tracker/-idle-event-callback ()
+  (tracker/-memory-cache-record-event 'idle))
+
+(defun tracker/-idle-event-start-listener ()
+  ;; When the user interaction has gone idle, track an idle event
+  (setq *tracker-ui-idle-event-timer*
+        (run-with-idle-timer tracker-ui-idle-event-timeout
+                             t 'tracker/-idle-event-callback))
+
+  (tracker/-register-timer *tracker-ui-idle-event-timer*))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Org timer events
+
+(defun tracker/-org-clock-in-hook ()
+  (tracker/record-event (list :org-clock-in (org-id-get))))
+
+(defun tracker/-org-clock-out-hook ()
+  (tracker/record-event (list :org-clock-out (org-id-get))))
+
+(add-hook 'org-clock-in-hook  'tracker/-org-clock-in-hook)
+(add-hook 'org-clock-out-hook 'tracker/-org-clock-out-hook)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun tracker/-cancel-timers ()
-  (when *tracker-idle-cache-flush-timer*
-    (cancel-timer *tracker-idle-cache-flush-timer*))
-  (when *tracker-idle-timer*
-    (cancel-timer *tracker-idle-timer*)))
+  (dolist (timer *tracker-timers*)
+    (when timer
+      (cancel-timer timer))))
+
+(defalias 'tracker/-pre-command-hook 'tracker/-memory-cache-record-event)
+(defalias 'tracker/record-event 'tracker/-memory-cache-record-event)
+
 
 ;;;###autoload
 (defun tracker/enable ()
   (interactive)
   (tracker/-cancel-timers)
   (add-hook 'pre-command-hook 'tracker/-pre-command-hook)
-  (setq *tracker-idle-cache-flush-timer*
-        (run-with-idle-timer *tracker-flush-timeout*
-                             t 'tracker/-flush-event-cache))
-  (setq *tracker-idle-timer*
-        (run-with-idle-timer *tracker-idle-timeout*
-                             t 'tracker/-idle-timer-hook)))
+  (tracker/-memory-cache-start)
+  (tracker/-idle-event-start-listener)
+  (when tracker-use-logfile
+    (tracker/-logfile-start)))
+
 ;;;###autoload
 (defun tracker/disable ()
   (interactive)
   (remove-hook 'pre-command-hook 'tracker/-pre-command-hook)
   (tracker/-cancel-timers))
 
-(defun tracker/-org-clock-in-hook ()
-  (tracker/-record-event (list :org-clock-in (org-id-get))))
-
-(defun tracker/-org-clock-out-hook ()
-  (tracker/-record-event (list :org-clock-out (org-id-get))))
-
-(add-hook 'org-clock-in-hook  'tracker/-org-clock-in-hook)
-(add-hook 'org-clock-out-hook 'tracker/-org-clock-out-hook)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (provide 'tracker)
