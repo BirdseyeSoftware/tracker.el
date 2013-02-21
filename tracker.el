@@ -20,8 +20,8 @@
 
 (defcustom tracker-use-logfile t
   "If true, will store events on tracker-ephemeral-dir")
+(defvar *tracker-logfile-path* "~/.emacs_tracker.log")
 
-(defcustom tracker-ephemeral-dir "~/.emacs.d" "")
 (defcustom tracker-memory-cache-flush-timeout 4 "")
 (defcustom tracker-logfile-flush-timeout 20 "")
 (defcustom tracker-ui-idle-event-timeout 10 "")
@@ -31,7 +31,6 @@
 (defvar *tracker-memory-cache-flush-hook* '() "")
 
 (defvar *tracker-logfile-flush-timer* nil)
-(defvar *tracker-logfile-path* (concat tracker-ephemeral-dir "/.tracker.log"))
 (defvar *tracker-logfile-cache* nil
   "A separate cache for log events that are going to be flushed to a log file")
 
