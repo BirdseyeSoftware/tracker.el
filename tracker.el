@@ -96,6 +96,7 @@
                        :time (format-time-string "%Y-%m-%dT%H:%M:%S")
                        :event event
                        :buffer (buffer-name (current-buffer))
+                       :file-path (buffer-file-name (current-buffer))
                        :line (line-number-at-pos)
                        :column (current-column))))
     (if (tracker/-should-add-extra-context this-command)
