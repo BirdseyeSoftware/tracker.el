@@ -17,7 +17,7 @@
 ;; This is a work in progress
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (require 'which-func)
-(require 'websockets)
+(require 'websocket)
 
 (defcustom tracker-use-logfile t
   "If true, will store events on tracker-ephemeral-dir"
@@ -221,8 +221,8 @@
                        ;;            (websocket-frame-payload frame)))
                        )
          :on-close (lambda (websocket)
-                     ;; (when tracker-ws-debugging
-                     ;;   (message "Websocket closed"))
+                     (when tracker-ws-debugging
+                       (message "Websocket closed"))
                      (setq *tracker-ws-conn* nil)
                      ;; TODO: Reconnect
                      )))
