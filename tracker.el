@@ -19,12 +19,20 @@
 (require 'which-func)
 
 (defcustom tracker-use-logfile t
-  "If true, will store events on tracker-ephemeral-dir")
+  "If true, will store events on tracker-ephemeral-dir"
+  :group 'tracker)
 (defvar *tracker-logfile-path* "~/.emacs_tracker.log")
 
-(defcustom tracker-memory-cache-flush-timeout 4 "")
-(defcustom tracker-logfile-flush-timeout 20 "")
-(defcustom tracker-ui-idle-event-timeout 10 "")
+(defcustom tracker-memory-cache-flush-timeout 4
+  "Number of seconds after which to flush the cache.
+   The hooks in *tracker-memory-cache-flush-hook* are called at this time"
+  :group 'tracker)
+(defcustom tracker-logfile-flush-timeout 20
+  "Number of seconds after which to flush the log file"
+  :group 'tracker)
+(defcustom tracker-ui-idle-event-timeout 10
+  "Number of seconds after which to record an idle timeout event"
+  :group 'tracker)
 
 (defvar *tracker-memory-cache-flush-timer* nil)
 (defvar *tracker-memory-cache* nil "The buffer for unflushed tracker events")
@@ -98,13 +106,18 @@
                        :time (format-time-string "%Y-%m-%dT%H:%M:%S")
                        :event event
                        :buffer (buffer-name (current-buffer))
-                       :file-path (buffer-file-name (current-buffer))
                        :line (line-number-at-pos)
                        :column (current-column))))
     (if (tracker/-should-add-extra-context this-command)
-        (append base-record (list :context (tracker/-get-context)
-                                  :frame-name (frame-parameter nil 'name)
-                                  :window-number (tracker/-get-window-number)))
+        (let ((filename (buffer-file-name (current-buffer))))
+          (append base-record (list :context (tracker/-get-context)
+                                    :file-path filename
+                                    :major-mode major-mode
+                                    :vc-status (and filename (vc-state filename))
+                                    :vc-revision (and filename
+                                                      (vc-working-revision filename))
+                                    :frame-name (frame-parameter nil 'name)
+                                    :window-number (tracker/-get-window-number))))
       base-record)))
 
 (defun tracker/-register-timer (timer)
