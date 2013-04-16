@@ -176,58 +176,58 @@
 
 ;; Web Sockets
 
-(defcustom tracker-ws-debugging t
-  "Enable debugging messages for websockets interaction."
-  :group 'tracker)
+;; (defcustom tracker-ws-debugging t
+;;   "Enable debugging messages for websockets interaction."
+;;   :group 'tracker)
 
-(defcustom tracker-use-ws t
-  "If true, will send events over a websocket connection"
-  :group 'tracker)
+;; (defcustom tracker-use-ws t
+;;   "If true, will send events over a websocket connection"
+;;   :group 'tracker)
 
-(defvar *tracker-ws-reconnect-attempt-interval* nil)
-(defvar *tracker-ws-conn* nil)
-(defvar *tracker-ws-server-url* "ws://localhost:8001/emacs")
+;; (defvar *tracker-ws-reconnect-attempt-interval* nil)
+;; (defvar *tracker-ws-conn* nil)
+;; (defvar *tracker-ws-server-url* "ws://localhost:8001/emacs")
 
-(defun tracker/-ws-serialize-event-list (evs)
-  (tracker/-logfile-serialize-event-list evs))
+;; (defun tracker/-ws-serialize-event-list (evs)
+;;   (tracker/-logfile-serialize-event-list evs))
 
-(defun tracker/-ws-get-events-from-memory-cache (evs)
-  (let ((payload-text (tracker/-ws-serialize-event-list evs)))
-    (websocket-send-text *tracker-ws-conn* payload-text)))
+;; (defun tracker/-ws-get-events-from-memory-cache (evs)
+;;   (let ((payload-text (tracker/-ws-serialize-event-list evs)))
+;;     (websocket-send-text *tracker-ws-conn* payload-text)))
 
-(defun tracker/-ws-close-existing-connection ()
-  (when (and *tracker-ws-conn*
-             (not (eq 'closed
-                      (websocket-ready-state *tracker-ws-conn*))))
-    (websocket-close *tracker-ws-conn*)))
+;; (defun tracker/-ws-close-existing-connection ()
+;;   (when (and *tracker-ws-conn*
+;;              (not (eq 'closed
+;;                       (websocket-ready-state *tracker-ws-conn*))))
+;;     (websocket-close *tracker-ws-conn*)))
 
-(defun tracker/-ws-start ()
-  (interactive)
-  (tracker/-ws-close-existing-connection)
-  (when tracker-ws-debugging
-    (setq websockets-debug t)
-                                        ;(setq websockets-callback-debug-on-error t)
-    )
-  (setq *tracker-ws-conn*
-        (websocket-open
-         *tracker-ws-server-url*
-         :on-open (lambda (websocket)
-                    ;; (when tracker-ws-debugging
-                    ;;   (message "Websocket opened"))
-                    )
-         :on-message (lambda (websocket frame)
-                       ;; (when tracker-ws-debugging
-                       ;;   (message "Received info from websocket: %s"
-                       ;;            (websocket-frame-payload frame)))
-                       )
-         :on-close (lambda (websocket)
-                     (when tracker-ws-debugging
-                       (message "Websocket closed"))
-                     (setq *tracker-ws-conn* nil)
-                     ;; TODO: Reconnect
-                     )))
-  (add-hook '*tracker-memory-cache-flush-hook*
-            'tracker/-ws-get-events-from-memory-cache))
+;; (defun tracker/-ws-start ()
+;;   (interactive)
+;;   (tracker/-ws-close-existing-connection)
+;;   (when tracker-ws-debugging
+;;     (setq websockets-debug t)
+;;                                         ;(setq websockets-callback-debug-on-error t)
+;;     )
+;;   (setq *tracker-ws-conn*
+;;         (websocket-open
+;;          *tracker-ws-server-url*
+;;          :on-open (lambda (websocket)
+;;                     ;; (when tracker-ws-debugging
+;;                     ;;   (message "Websocket opened"))
+;;                     )
+;;          :on-message (lambda (websocket frame)
+;;                        ;; (when tracker-ws-debugging
+;;                        ;;   (message "Received info from websocket: %s"
+;;                        ;;            (websocket-frame-payload frame)))
+;;                        )
+;;          :on-close (lambda (websocket)
+;;                      (when tracker-ws-debugging
+;;                        (message "Websocket closed"))
+;;                      (setq *tracker-ws-conn* nil)
+;;                      ;; TODO: Reconnect
+;;                      )))
+;;   (add-hook '*tracker-memory-cache-flush-hook*
+;;             'tracker/-ws-get-events-from-memory-cache))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -274,18 +274,18 @@
 (defun tracker/enable ()
   (interactive)
   (tracker/-cancel-timers)
-  (add-hook 'pre-command-hook 'tracker/-pre-command-hook)
+  ;(add-hook 'pre-command-hook 'tracker/-pre-command-hook)
+  (add-hook 'post-command-hook 'tracker/-pre-command-hook)
   (tracker/-memory-cache-start)
   (tracker/-idle-event-start-listener)
   (when tracker-use-logfile
-    (tracker/-logfile-start))
-  (when tracker-use-ws
-    (tracker/-ws-start)))
+    (tracker/-logfile-start)))
 
 ;;;###autoload
 (defun tracker/disable ()
   (interactive)
-  (remove-hook 'pre-command-hook 'tracker/-pre-command-hook)
+  ;(remove-hook 'pre-command-hook 'tracker/-pre-command-hook)
+  (remove-hook 'post-command-hook 'tracker/-pre-command-hook)
   (tracker/-cancel-timers))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
