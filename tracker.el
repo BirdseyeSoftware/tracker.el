@@ -96,8 +96,7 @@
                move-beginning-of-line
                dss/coffee-electric-pair
                backward-word
-               isearch-printing-char
-               ))))
+               isearch-printing-char))))
 
 (defun tracker/-create-event-record (&optional event)
   (interactive)
@@ -107,6 +106,7 @@
                        :time (format-time-string "%Y-%m-%dT%H:%M:%S")
                        :event event
                        :buffer (buffer-name (current-buffer))
+                       :default-directory default-directory
                        :line (line-number-at-pos)
                        :column (current-column))))
     (if (tracker/-should-add-extra-context this-command)
