@@ -114,6 +114,8 @@
           (append base-record (list :context (tracker/-get-context)
                                     :file-path filename
                                     :major-mode major-mode
+                                    :hostname system-name
+                                    :username (getenv "USER")
                                     :vc-status (and filename (vc-state filename))
                                     :vc-revision (and filename
                                                       (vc-working-revision filename))
