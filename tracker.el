@@ -103,6 +103,7 @@
   (let* ((event (or event ;; real-last-command
                     (list :command this-command)))
          (base-record (list
+                       :editor :emacs
                        :time (-take 2 (current-time))
                        :event event
                        :buffer (buffer-name (current-buffer))
