@@ -17,7 +17,7 @@
 ;; This is a work in progress
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (require 'which-func)
-(require 'websocket)
+(require 'dash)
 
 (defcustom tracker-use-logfile t
   "If true, will store events on tracker-ephemeral-dir"
@@ -103,7 +103,7 @@
   (let* ((event (or event ;; real-last-command
                     (list :command this-command)))
          (base-record (list
-                       :time (format-time-string "%Y-%m-%dT%H:%M:%S")
+                       :time (-take 2 (current-time))
                        :event event
                        :buffer (buffer-name (current-buffer))
                        :default-directory default-directory
